@@ -2,28 +2,36 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>net48;net9.0</TargetFrameworks>
+    <TargetFrameworks>net48;net10.0</TargetFrameworks>
     <RootNamespace>Driver.NET.DeviceIoControl</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.3.4</Version>
+    <Version>2.4.0</Version>
     <Description>Powerful, simple and lightweight library used to communicate with kernel drivers on Windows.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Copyright>Copyright ©  2025</Copyright>
+    <Copyright>Copyright © 2026</Copyright>
     <Authors>Berkan YILDIZ</Authors>
     <PackageProjectUrl>https://github.com/BerkanYildiz/Driver.NET</PackageProjectUrl>
-    <PackageReleaseNotes></PackageReleaseNotes>
+    <PackageReleaseNotes>Targets .NET 10 and .NET Framework 4.8. The assembly is now marked as Windows-only. DeviceIoControl implements IDisposable, buffer sizes use the unmanaged size of the structure, and a TryIoControl overload exposes the number of returned bytes.</PackageReleaseNotes>
     <PackageTags>Windows Kernel Driver Library Service KMDF WDM WDF Device IRP IOCTL DeviceIoControl NtDeviceIoControl</PackageTags>
     <RepositoryUrl>https://github.com/BerkanYildiz/Driver.NET</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <None Include="..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
+      <_Parameter1>windows</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

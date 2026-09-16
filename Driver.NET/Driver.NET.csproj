@@ -2,32 +2,35 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>net48;net9.0</TargetFrameworks>
+    <TargetFrameworks>net48;net10.0</TargetFrameworks>
     <RootNamespace>Driver.NET</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.3.4</Version>
+    <Version>2.4.0</Version>
     <Description>Powerful, simple and lightweight library used to create services and load/communicate with kernel drivers on Windows.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Copyright>Copyright ©  2025</Copyright>
+    <Copyright>Copyright © 2026</Copyright>
     <Authors>Berkan YILDIZ</Authors>
     <PackageProjectUrl>https://github.com/BerkanYildiz/Driver.NET</PackageProjectUrl>
-    <PackageReleaseNotes></PackageReleaseNotes>
+    <PackageReleaseNotes>Targets .NET 10 and .NET Framework 4.8. The assembly is now marked as Windows-only. Fixes leaked token handles and unmanaged strings when loading/unloading drivers, and NTSTATUS values being read as 64-bit integers.</PackageReleaseNotes>
     <PackageTags>Windows Kernel Driver Library Service KMDF WDM WDF Device IRP IOCTL DeviceIoControl NtDeviceIoControl</PackageTags>
     <RepositoryUrl>https://github.com/BerkanYildiz/Driver.NET</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <None Include="..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
-  
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" Condition="'$(TargetFramework)' == 'net9.0'" />
+
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
+      <_Parameter1>windows</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

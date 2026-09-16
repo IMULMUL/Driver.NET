@@ -1,8 +1,6 @@
 ﻿namespace Driver.NET.Services
 {
     using System;
-    using System.IO;
-    using System.Linq;
 
     using Microsoft.Win32;
     using Microsoft.Win32.SafeHandles;
@@ -10,15 +8,15 @@
     public partial class WindowsService
     {
         /// <summary>
-        /// Opens a handle to this service's registry key.
+        /// Opens a handle to this service's registry key, or returns <c>null</c> if the key does not exist.
         /// </summary>
         public SafeRegistryHandle OpenRegistryHandle()
         {
-            return this.OpenRegistryKey().Handle;
+            return this.OpenRegistryKey()?.Handle;
         }
 
         /// <summary>
-        /// Opens a handle to this service's registry key wrapped in a <see cref="RegistryKey"/> instance.
+        /// Opens this service's registry key wrapped in a <see cref="RegistryKey"/> instance, or returns <c>null</c> if the key does not exist.
         /// </summary>
         public RegistryKey OpenRegistryKey()
         {
@@ -30,11 +28,11 @@
         /// </summary>
         public void CreateRegistryKey()
         {
-            Registry.LocalMachine.CreateSubKey(this.RegistryPathRelativeToLocalMachine)?.Close();
+            Registry.LocalMachine.CreateSubKey(this.RegistryPathRelativeToLocalMachine)?.Dispose();
         }
 
         /// <summary>
-        /// Deletes the registry key for this service.
+        /// Deletes the registry key for this service, if it exists.
         /// </summary>
         public void DeleteRegistryKey()
         {
@@ -52,136 +50,84 @@
         /// Reads and return a registry value from the current service's registry key.
         /// </summary>
         /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="ValueName">The name of the value.</param>
-        /// <param name="DefaultValue">The default value.</param>
-        public T ReadRegistryValue<T>(string ValueName, T DefaultValue = default(T))
+        /// <param name="ValueName">The name of the value, optionally prefixed by a sub-key path (e.g. 'Parameters\MyValue').</param>
+        /// <param name="DefaultValue">The value returned when the value or its key does not exist.</param>
+        public T ReadRegistryValue<T>(string ValueName, T DefaultValue = default)
         {
-            // 
-            // Check if the value name is null or empty.
-            // 
+            var KeyPath = this.ResolveValuePath(ValueName, out _, out var RealValueName);
+            var Value = Registry.GetValue(KeyPath, RealValueName, DefaultValue);
 
-            if (string.IsNullOrEmpty(ValueName))
-            {
-                throw new ArgumentNullException(nameof(ValueName), "The registry value name is null or empty.");
-            }
-
-            // 
-            // Are there any slashes in the value name ?
-            // 
-
-            if (ValueName.Any(C => C == '/' || C == '\\'))
-            {
-                // 
-                // Convert all forward slashes '/' to backward slashes '\'.
-                // 
-
-                ValueName = ValueName.Replace('/', '\\');
-
-                // 
-                // Make sure the value name does not end with a slash.
-                // 
-
-                if (ValueName[ValueName.Length - 1] == '\\')
-                {
-                    // 
-                    // Remove the backward slash.
-                    // 
-
-                    ValueName = ValueName.Remove(ValueName.Length - 1, 1);
-                }
-
-                // 
-                // Parse the sub-key name and the real value name.
-                // 
-
-                var SplitName = ValueName.Split('\\');
-                var SubKeyName = string.Join("\\", SplitName, 0, SplitName.Length - 1);
-                var RealValueName = SplitName[SplitName.Length - 1];
-
-                // 
-                // We're done, get the value from the registry with the modified parameters.
-                // 
-
-                return (T) Registry.GetValue(Path.Combine(this.RegistryPath, SubKeyName), RealValueName, DefaultValue);
-            }
-
-            return (T) Registry.GetValue(this.RegistryPath, ValueName, DefaultValue);
+            return Value == null ? DefaultValue : (T) Value;
         }
 
         /// <summary>
         /// Writes a registry value to the current service's registry key.
         /// </summary>
         /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="ValueName">The name of the value.</param>
+        /// <param name="ValueName">The name of the value, optionally prefixed by a sub-key path (e.g. 'Parameters\MyValue').</param>
         /// <param name="Value">The value.</param>
         /// <param name="ValueKind">The type of the value in registry.</param>
         public void WriteRegistryValue<T>(string ValueName, T Value, RegistryValueKind ValueKind = RegistryValueKind.Unknown)
         {
-            // 
-            // Check if the value name is null or empty.
-            // 
+            var KeyPath = this.ResolveValuePath(ValueName, out var SubKeyName, out var RealValueName);
 
+            //
+            // Make sure the sub-key exists.
+            //
+
+            if (SubKeyName != null)
+            {
+                using (var ServiceKey = Registry.LocalMachine.OpenSubKey(this.RegistryPathRelativeToLocalMachine, true))
+                {
+                    if (ServiceKey == null)
+                    {
+                        throw new InvalidOperationException("The registry key of the service does not exist.");
+                    }
+
+                    ServiceKey.CreateSubKey(SubKeyName)?.Dispose();
+                }
+            }
+
+            Registry.SetValue(KeyPath, RealValueName, Value, ValueKind);
+        }
+
+        /// <summary>
+        /// Splits a value name that may be prefixed by a sub-key path (e.g. 'Parameters\MyValue')
+        /// into the sub-key path, the actual value name, and the full registry path of the key holding the value.
+        /// </summary>
+        /// <param name="ValueName">The name of the value, optionally prefixed by a sub-key path.</param>
+        /// <param name="SubKeyName">The sub-key path relative to the service's key, or <c>null</c> if there is none.</param>
+        /// <param name="RealValueName">The actual name of the value.</param>
+        /// <returns>The full registry path of the key holding the value.</returns>
+        private string ResolveValuePath(string ValueName, out string SubKeyName, out string RealValueName)
+        {
             if (string.IsNullOrEmpty(ValueName))
             {
                 throw new ArgumentNullException(nameof(ValueName), "The registry value name is null or empty.");
             }
 
-            // 
-            // Are there any slashes in the value name ?
-            // 
+            //
+            // Convert all forward slashes '/' to backward slashes '\' and make sure the name does not end with a slash.
+            //
 
-            if (ValueName.Any(C => C == '/' || C == '\\'))
+            ValueName = ValueName.Replace('/', '\\').TrimEnd('\\');
+
+            //
+            // Parse the sub-key name and the real value name.
+            //
+
+            var Separator = ValueName.LastIndexOf('\\');
+
+            if (Separator <= 0)
             {
-                // 
-                // Convert all forward slashes '/' to backward slashes '\'.
-                // 
-
-                ValueName = ValueName.Replace('/', '\\');
-
-                // 
-                // Make sure the value name does not end with a slash.
-                // 
-
-                if (ValueName[ValueName.Length - 1] == '\\')
-                {
-                    // 
-                    // Remove the backward slash.
-                    // 
-
-                    ValueName = ValueName.Remove(ValueName.Length - 1, 1);
-                }
-
-                // 
-                // Parse the sub-key name and the real value name.
-                // 
-
-                var SplitName = ValueName.Split('\\');
-                var SubKeyName = string.Join("\\", SplitName, 0, SplitName.Length - 1);
-                var RealValueName = SplitName[SplitName.Length - 1];
-
-                // 
-                // Make sure the sub-key exists.
-                // 
-
-                using (var ServiceKey = Registry.LocalMachine.OpenSubKey(this.RegistryPathRelativeToLocalMachine, true))
-                {
-                    if (ServiceKey == null)
-                    {
-                        throw new ArgumentException("The specified registry path does not exist.", nameof(SubKeyName));
-                    }
-
-                    ServiceKey.CreateSubKey(SubKeyName)?.Close();
-                }
-
-                // 
-                // We're done, get the value from the registry with the modified parameters.
-                // 
-
-                Registry.SetValue(Path.Combine(this.RegistryPath, SubKeyName), RealValueName, Value, ValueKind);
-                return;
+                SubKeyName = null;
+                RealValueName = Separator < 0 ? ValueName : ValueName.Substring(1);
+                return this.RegistryPath;
             }
 
-            Registry.SetValue(this.RegistryPath, ValueName, Value, ValueKind);
+            SubKeyName = ValueName.Substring(0, Separator);
+            RealValueName = ValueName.Substring(Separator + 1);
+            return this.RegistryPath + "\\" + SubKeyName;
         }
     }
 }

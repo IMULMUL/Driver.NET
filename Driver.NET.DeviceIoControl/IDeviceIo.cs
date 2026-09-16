@@ -1,6 +1,11 @@
 ﻿namespace Driver.NET.DeviceIoControl
 {
-    public interface IDeviceIo
+    using System;
+
+    /// <summary>
+    /// Represents a device accepting I/O control requests.
+    /// </summary>
+    public interface IDeviceIo : IDisposable
     {
         /// <summary>
         /// Gets a value indicating whether the handle is valid.
